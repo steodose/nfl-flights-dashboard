@@ -1,0 +1,186 @@
+/* NFL Charter Flights — layout inspired by the Plotly Dash gallery "Uber Rides Studio" */
+
+:root {
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #8a8984;
+  --grid: #e8e7e3;
+  --surface: #fcfcfb;
+  --bg: #f4f3f0;
+  --accent: #013369;   /* NFL navy */
+  --accent-red: #d50a0a; /* NFL red */
+  --afc: #d50a0a;
+  --nfc: #013369;
+  --pill-bg: #ffffff;
+  --font: "Titillium Web", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+html[data-theme="dark"] {
+  --ink: #f2f1ee;
+  --ink2: #c9c8c3;
+  --muted: #96958f;
+  --grid: #363532;
+  --surface: #1c1c1b;
+  --bg: #111110;
+  --accent: #7aa2e3;
+  --afc: #ef4b55;
+  --nfc: #4f7cc4;
+  --pill-bg: #242422;
+
+  /* Dash 3+/4 built-in component tokens */
+  --Dash-Fill-Inverse-Strong: #242422;
+  --Dash-Text-Strong: #f2f1ee;
+  --Dash-Text-Primary: #e4e3df;
+  --Dash-Text-Weak: #b5b4ae;
+  --Dash-Stroke-Strong: rgba(255, 255, 255, .35);
+  --Dash-Stroke-Weak: rgba(255, 255, 255, .12);
+  --Dash-Fill-Primary-Hover: rgba(255, 255, 255, .06);
+  --Dash-Fill-Primary-Active: rgba(255, 255, 255, .10);
+  --Dash-Fill-Interactive-Weak: rgba(255, 255, 255, .05);
+  --Dash-Fill-Disabled: rgba(255, 255, 255, .08);
+  --Dash-Text-Disabled: rgba(255, 255, 255, .4);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+a { color: var(--accent); }
+
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px 16px; }
+
+/* ---- top bar ---- */
+.topbar { display: flex; justify-content: flex-end; gap: 18px; padding: 12px 0 0; }
+.topbar .opt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.topbar .opt b { font-weight: 600; }
+
+.radio label { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; font-size: 14px; cursor: pointer; }
+.radio input[type=radio] { accent-color: var(--accent); }
+
+/* ---- header ---- */
+.hdr {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 18px 0 14px; border-bottom: 3px solid var(--accent); margin-bottom: 14px;
+}
+.hdr-main { display: flex; align-items: center; gap: 18px; }
+.nfl-shield { height: 84px; width: auto; flex: none; }
+.team-select { display: flex; align-items: center; gap: 10px; }
+.team-logo { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.team-dropdown { flex: 1; min-width: 0; }
+.hdr h1 { margin: 0 0 2px; font-size: 32px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; margin-top: 4px; }
+
+
+.badge-stack { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { font-size: 12px; padding: 5px 11px; border-radius: 999px; background: var(--pill-bg); border: 1px solid var(--grid); color: var(--ink2); }
+.pill-alt { background: var(--accent); color: #fff; border-color: var(--accent); }
+html[data-theme="dark"] .pill-alt { color: #0b0b0b; }
+
+/* ---- controls ---- */
+.controls {
+  display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end;
+  background: var(--surface); border: 1px solid var(--grid); border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 12px;
+}
+.control { min-width: 140px; }
+.control-team { min-width: 260px; }
+.control label { display: block; font-size: 12px; color: var(--ink2); margin-bottom: 4px; font-weight: 600; }
+.control .radio label { display: inline-flex; font-weight: 400; font-size: 14px; color: var(--ink); margin-bottom: 0; }
+.control .radio { padding: 7px 0; }
+
+/* ---- KPIs ---- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 0 0 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--grid); border-radius: 10px; padding: 12px 14px; border-top: 3px solid var(--accent); }
+.kpi-label { font-size: 12px; color: var(--ink2); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.kpi-value { font-size: 28px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi-sub { font-size: 13px; color: var(--muted); }
+
+/* ---- cards ---- */
+.card { background: var(--surface); border: 1px solid var(--grid); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; min-width: 0; }
+.card h3 { margin: 0 0 2px; font-size: 19px; font-weight: 700; }
+.league-note { font-size: 13px; color: var(--ink2); margin: -4px 0 10px; }
+.league-note b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.dl-group { display: flex; gap: 6px; flex: none; }
+.dl-btn {
+  background: transparent; border: 1px solid var(--grid); color: var(--ink2); border-radius: 8px;
+  padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.dl-btn:hover, .csv-btn:hover { border-color: var(--accent); color: var(--accent); }
+.csv-btn {
+  background: transparent; border: 1px solid var(--grid); color: var(--ink2); border-radius: 8px;
+  padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.dl-btn:disabled { opacity: .6; cursor: progress; }
+.dl-btn-strong { border-radius: 999px; padding: 5px 12px; }
+.hint { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.card-controls { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 8px; color: var(--ink); }
+
+.sw { font-weight: 600; }
+.sw-afc { color: var(--afc); }
+.sw-nfc { color: var(--nfc); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.scroll { max-height: 520px; overflow-y: auto; overflow-x: hidden; }
+
+/* ---- AG Grid ---- */
+#grid {
+  --ag-font-family: var(--font);
+  --ag-font-size: 14px;
+  --ag-accent-color: var(--accent);
+  --ag-header-background-color: #1a1a1a;
+  --ag-header-text-color: #ffffff;
+  --ag-header-column-resize-handle-color: #555;
+  --ag-selected-row-background-color: rgba(255, 210, 63, .28);
+  --ag-row-hover-color: rgba(1, 51, 105, .06);
+  --ag-border-color: var(--grid);
+  --ag-row-border-color: var(--grid);
+  --ag-background-color: var(--surface);
+  --ag-foreground-color: var(--ink);
+  --ag-wrapper-border-radius: 8px;
+}
+html[data-theme="dark"] #grid {
+  --ag-background-color: #1c1c1b;
+  --ag-foreground-color: #f2f1ee;
+  --ag-header-background-color: #000000;
+  --ag-odd-row-background-color: #20201f;
+  --ag-row-hover-color: #2b2a28;
+  --ag-chrome-background-color: #242422;
+}
+
+/* table opponent cell */
+.team-cell { display: inline-flex; align-items: center; gap: 8px; }
+.team-cell .helmet { height: 28px; width: auto; }
+
+/* ---- footer (Between the Pipes) ---- */
+.ftr {
+  display: flex; align-items: center; gap: 16px;
+  color: var(--muted); font-size: 13px; padding: 18px 0 8px; border-top: 1px solid var(--grid); margin-top: 8px;
+}
+.ftr strong { color: var(--ink2); }
+.footer-text { line-height: 1.7; }
+.socials { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.socials a { font-weight: 600; text-decoration: none; }
+.socials a:hover { text-decoration: underline; }
+.btp-badge { flex: none; line-height: 0; }
+.btp-badge img { height: 52px; width: auto; border-radius: 10px; transition: transform .15s, box-shadow .15s; }
+.btp-badge:hover img { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0, 0, 0, .15); }
+
+/* ---- responsive ---- */
+@media (max-width: 900px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .ftr { flex-direction: column; align-items: flex-start; }
+  .wrap { padding: 0 16px 16px; }
+  .hdr h1 { font-size: 26px; }
+  .nfl-shield { height: 60px; }
+  .control, .control-team { min-width: 100%; }
+}
