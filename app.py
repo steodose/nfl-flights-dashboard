@@ -235,7 +235,7 @@ def serve_layout():
                     "suppressCellFocus": True,
                     "rowHeight": 40,
                 },
-                getRowId="String(params.data.row_id)",
+                getRowId="params.data.row_id",
                 style={"width": "100%"},
             ),
         ]),
@@ -361,6 +361,7 @@ def update_team_view(team, season, direction, theme):
     grid_rows = legs[[c["field"] for c in GRID_COLUMNS] + ["row_id", "home_helmet"]].assign(
         direction=lambda d: d["direction"].str.title(),
         flight_date=lambda d: d["flight_date"].dt.strftime("%Y-%m-%d"),
+        row_id=lambda d: d["row_id"].astype(str),  # AG Grid row IDs must be strings
     ).to_dict("records")
 
     return (
@@ -384,7 +385,7 @@ def update_team_view(team, season, direction, theme):
 )
 def update_map(team, season, direction, selected_rows, theme):
     legs = _filter(load_flights(), season, direction, team)
-    highlight = [r["row_id"] for r in (selected_rows or [])]
+    highlight = [int(r["row_id"]) for r in (selected_rows or [])]
     return figures.map_figure(legs, theme or "light", highlight)
 
 
