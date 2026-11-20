@@ -46,13 +46,100 @@
     return { x: r.left - rr.left, y: r.top - rr.top };
   }
 
+  // ---- Safari-safe chart rasterisation -------------------------------------------------
+  // Safari drops external <image>s and web fonts when Plotly turns its SVG into a PNG, and
+  // returns a blank WebGL map. So: inline layout images and the Titillium font as data URIs,
+  // rasterise the SVG ourselves, and copy maps straight from their live canvas.
+
+  var dataUrlCache = {};
+  function toDataUrl(url) {
+    if (!url || url.indexOf("data:") === 0) return Promise.resolve(url);
+    if (!dataUrlCache[url]) {
+      dataUrlCache[url] = fetch(url).then(function (r) { return r.blob(); }).then(function (b) {
+        return new Promise(function (resolve) {
+          var fr = new FileReader();
+          fr.onload = function () { resolve(fr.result); };
+          fr.readAsDataURL(b);
+        });
+      }).catch(function () { return url; });
+    }
+    return dataUrlCache[url];
+  }
+
+  var fontCss = null;
+  function embeddedFontCss() {
+    if (!fontCss) {
+      var href = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"]'), function (l) { return l.href; })
+        .filter(function (h) { return h.indexOf("fonts.googleapis.com") !== -1; })[0];
+      fontCss = !href ? Promise.resolve("") : fetch(href).then(function (r) { return r.text(); }).then(function (css) {
+        // Keep the latin faces only; inline each font file.
+        var blocks = css.split("/* ").filter(function (b) { return b.indexOf("latin */") === 0; });
+        return Promise.all(blocks.map(function (b) {
+          var face = b.slice(b.indexOf("@font-face"));
+          var m = face.match(/url\(([^)]+)\)/);
+          return m ? toDataUrl(m[1]).then(function (d) { return face.replace(m[1], d); }) : face;
+        })).then(function (faces) { return faces.join("\n"); });
+      }).catch(function () { return ""; });
+    }
+    return fontCss;
+  }
+
+  function mapCanvas(gd) {
+    var fl = gd._fullLayout || {};
+    var sub = (fl.map && fl.map._subplot) || (fl.mapbox && fl.mapbox._subplot);
+    return sub && sub.map;
+  }
+
+  function captureMap(map) {
+    // Read the WebGL canvas inside a render frame, before the buffer is cleared.
+    var hiDpi = map.setPixelRatio && map.getPixelRatio && map.getPixelRatio() < SCALE;
+    var prev = hiDpi ? map.getPixelRatio() : null;
+    if (hiDpi) map.setPixelRatio(SCALE);
+    return new Promise(function (resolve) {
+      // Wait for tiles at the new resolution, then grab the frame.
+      map.once("idle", function () {
+        map.once("render", function () {
+          var url = map.getCanvas().toDataURL("image/png");
+          if (hiDpi) map.setPixelRatio(prev);
+          resolve(url);
+        });
+        map.triggerRepaint();
+      });
+      map.triggerRepaint();
+    }).then(loadImage);
+  }
+
+  async function chartImage(gd) {
+    var map = mapCanvas(gd);
+    if (map) return captureMap(map);
+    var w = gd.offsetWidth, h = gd.offsetHeight;
+    var layout = Object.assign({}, gd.layout, { width: w, height: h });
+    layout.images = await Promise.all((gd.layout.images || []).map(function (im) {
+      return toDataUrl(im.source).then(function (src) { return Object.assign({}, im, { source: src }); });
+    }));
+    var svgUrl = await window.Plotly.toImage({ data: gd.data, layout: layout, config: { staticPlot: true } },
+      { format: "svg", width: w, height: h });
+    var body = svgUrl.slice(svgUrl.indexOf(",") + 1);
+    var svg = svgUrl.indexOf(";base64,") !== -1 ? atob(body) : decodeURIComponent(body);
+    var css = await embeddedFontCss();
+    if (css) svg = svg.replace(/(<svg[^>]*>)/, "$1<style>" + css + "</style>");
+    var img = await loadImage("data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg));
+    // Safari fires onload before images/fonts nested in the SVG have decoded; give them a
+    // moment (attached off-screen so WebKit actually decodes) before drawing.
+    img.style.cssText = "position:fixed;left:-99999px;top:0;width:" + w + "px;height:" + h + "px;";
+    document.body.appendChild(img);
+    try { if (img.decode) await img.decode(); } catch (e) { /* ignore */ }
+    await new Promise(function (r) { setTimeout(r, 400); });
+    var c = document.createElement("canvas");
+    c.width = w * SCALE; c.height = h * SCALE;
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    img.remove();
+    return c;
+  }
+
   async function render(target) {
     var plots = Array.prototype.slice.call(target.querySelectorAll(".js-plotly-plot"));
-    var images = await Promise.all(plots.map(function (gd) {
-      return window.Plotly.toImage(gd, {
-        format: "png", width: gd.offsetWidth, height: gd.offsetHeight, scale: SCALE,
-      }).then(loadImage);
-    }));
+    var images = await Promise.all(plots.map(chartImage));
     // Filled in from the html2canvas clone, whose layout differs from the live page
     // (ignored elements removed, scroll boxes expanded).
     var placements = [];

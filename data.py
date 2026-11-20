@@ -19,23 +19,21 @@ DATA_URL = (
 FALLBACK_PATH = Path(__file__).parent / "data" / "charter_flights.csv"
 CACHE_TTL_SECONDS = 6 * 60 * 60
 
-# ESPN CDN uses a few abbreviations that differ from nflverse-style codes.
-_ESPN_ABBR = {"WAS": "wsh", "LA": "lar"}
+# Team logos (ESPN CDN) and helmets (steodose/NFL) are bundled in assets/ at reduced size.
+# Serving them same-origin keeps PNG export working in Safari, which refuses to draw
+# cross-origin images onto a canvas.
+_ASSETS = Path(__file__).parent / "assets"
 
 _cache = {"df": None, "loaded_at": 0.0, "source": None}
 
 
 def logo_url(abbr: str) -> str:
-    code = _ESPN_ABBR.get(abbr, abbr).lower()
-    return f"https://a.espncdn.com/i/teamlogos/nfl/500/{code}.png"
-
-
-HELMET_BASE = "https://raw.githubusercontent.com/steodose/NFL/master/helmets"
+    return f"/assets/teams/{abbr}.png"
 
 
 def helmet_url(abbr: str) -> str:
-    """Right-facing team helmet from the steodose/NFL repo (uses nflverse abbreviations)."""
-    return f"{HELMET_BASE}/{abbr}_right.png"
+    """Right-facing team helmet (nflverse abbreviations), bundled from the steodose/NFL repo."""
+    return f"/assets/helmets/{abbr}.png" if (_ASSETS / "helmets" / f"{abbr}.png").exists() else ""
 
 
 def _read_remote() -> pd.DataFrame:

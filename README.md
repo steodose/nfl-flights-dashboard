@@ -31,10 +31,10 @@ python3 -m venv .venv
 | `data.py` | Fetches the CSV from GitHub (cached 6h) with a fallback to `data/charter_flights.csv`; logo URLs; great-circle helper |
 | `figures.py` | Map, team bars and carrier bars (light/dark aware) |
 | `assets/style.css` | Theme tokens and layout (Titillium Web) |
-| `assets/export.js` | PNG export (html2canvas plus Plotly.toImage) |
+| `assets/export.js` | PNG export (html2canvas for the HTML; charts rasterised with inlined images and fonts; maps copied from their WebGL canvas) |
 | `assets/logo-column.js` | Keeps bar-chart logo columns pinned at a fixed pixel offset |
 | `assets/dashAgGridComponentFunctions.js` | Helmet + team-name cell renderer for the flight table |
-| `assets/airlines/` | Bundled airline logos |
+| `assets/airlines/`, `assets/teams/`, `assets/helmets/` | Bundled airline logos, team logos and helmets (served same-origin so PNG export works in Safari) |
 
 ## Data refresh
 
