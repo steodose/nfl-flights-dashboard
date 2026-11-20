@@ -103,8 +103,10 @@ def map_figure(legs: pd.DataFrame, theme: str = "light", highlight_ids: list | N
         mid = len(lats) // 2
         hover_lat.append(lats[mid])
         hover_lon.append(lons[mid])
+        d = row.flight_date
+        date_str = f"{d:%a, %b} {d.day}, {d.year}" if pd.notna(d) else "Date n/a"
         hover_text.append(
-            f"<b>Week {row.week}</b> · {row.direction.title()}<br>"
+            f"<b>Week {row.week}</b> · {row.direction.title()} · {date_str}<br>"
             f"{row.dep_airport} → {row.arr_airport} · {row.distance_mi:,} mi<br>"
             f"vs {row.home_team}<br>"
             f"{row.airline} {row.flight_number} · {row.aircraft_type}"

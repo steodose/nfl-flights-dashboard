@@ -130,6 +130,9 @@ def _ordinal(n: int) -> str:
 
 GRID_COLUMNS = [
     {"field": "week", "headerName": "Week", "width": 82, "type": "numericColumn"},
+    # ISO strings sort correctly; shown as e.g. "Sun, Sep 7".
+    {"field": "flight_date", "headerName": "Date", "width": 115,
+     "valueFormatter": {"function": "params.value ? d3.timeFormat('%a, %b %-d')(d3.timeParse('%Y-%m-%d')(params.value)) : ''"}},
     {"field": "direction", "headerName": "Leg", "width": 100},
     {"field": "home_team", "headerName": "Opponent (Home)", "minWidth": 210, "flex": 2,
      "cellRenderer": "TeamHelmet"},
@@ -232,7 +235,7 @@ def serve_layout():
                     "suppressCellFocus": True,
                     "rowHeight": 40,
                 },
-                getRowId="params.data.row_id",
+                getRowId="String(params.data.row_id)",
                 style={"width": "100%"},
             ),
         ]),
@@ -356,7 +359,8 @@ def update_team_view(team, season, direction, theme):
 
     leg_label = "" if direction == "all" else f" · {direction.title()} legs"
     grid_rows = legs[[c["field"] for c in GRID_COLUMNS] + ["row_id", "home_helmet"]].assign(
-        direction=lambda d: d["direction"].str.title()
+        direction=lambda d: d["direction"].str.title(),
+        flight_date=lambda d: d["flight_date"].dt.strftime("%Y-%m-%d"),
     ).to_dict("records")
 
     return (
