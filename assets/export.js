@@ -137,6 +137,29 @@
     return c;
   }
 
+  // html2canvas renders from a cloned copy of the page in a hidden iframe and waits for that
+  // iframe's load event. On the deployed site Safari sometimes leaves the clone stuck at
+  // readyState "interactive" even though every resource has loaded, so the export hangs.
+  // If the clone stalls, nudge it: report "complete" and fire the load handler ourselves.
+  function watchClone() {
+    var seen = null, since = 0, kicked = false;
+    var timer = setInterval(function () {
+      var f = document.querySelector("iframe.html2canvas-container");
+      if (!f || kicked) return;
+      var d, w;
+      try { d = f.contentDocument; w = f.contentWindow; } catch (e) { return; }
+      if (!d || d.readyState === "complete" || !d.body || !d.body.childNodes.length) return;
+      if (seen !== f) { seen = f; since = Date.now(); return; }
+      if (Date.now() - since < 1500) return;
+      var handler = w.onload || f.onload;
+      if (typeof handler !== "function") return;
+      kicked = true;
+      try { Object.defineProperty(d, "readyState", { configurable: true, get: function () { return "complete"; } }); } catch (e) { /* ignore */ }
+      handler.call(w);
+    }, 250);
+    return function () { clearInterval(timer); };
+  }
+
   async function render(target) {
     var plots = Array.prototype.slice.call(target.querySelectorAll(".js-plotly-plot"));
     var images = await Promise.all(plots.map(chartImage));
@@ -146,6 +169,7 @@
 
     var mutedColor = (getComputedStyle(document.documentElement).getPropertyValue("--muted") || "#8a8984").trim();
 
+    var stopWatch = watchClone();
     var canvas = await window.html2canvas(target, {
       scale: SCALE,
       useCORS: true,
@@ -173,7 +197,7 @@
           el.style.visibility = "hidden";
         });
       },
-    });
+    }).finally(stopWatch);
 
     var ctx = canvas.getContext("2d");
     // html2canvas leaves its scale/translate transform on the context; draw in raw pixels.
