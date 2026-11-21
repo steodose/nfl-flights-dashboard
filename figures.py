@@ -1,6 +1,7 @@
 """Plotly figure builders. Every builder takes a `theme` ("light" | "dark")."""
 from __future__ import annotations
 
+import math
 import re
 
 import pandas as pd
@@ -32,6 +33,23 @@ COUNTRY_LABELS = [
     ("Japan", 36.5, 138.5), ("China", 35.0, 103.0), ("Australia", -25.7, 134.5),
     ("New Zealand", -41.5, 172.5),
 ]
+
+# City served by each airport code in the data. Unlisted codes fall back to the code itself.
+AIRPORT_CITIES = {
+    "AFW": "Fort Worth", "ATL": "Atlanta", "ATW": "Appleton", "BED": "Bedford", "BER": "Berlin",
+    "BKL": "Cleveland", "BNA": "Nashville", "BOS": "Boston", "BUF": "Buffalo", "BWI": "Baltimore",
+    "CDG": "Paris", "CLE": "Cleveland", "CLT": "Charlotte", "COS": "Colorado Springs",
+    "CVG": "Cincinnati", "DAL": "Dallas", "DEN": "Denver", "DET": "Detroit", "DFW": "Dallas",
+    "DTW": "Detroit", "DUB": "Dublin", "EFD": "Houston", "EWR": "Newark", "FLL": "Fort Lauderdale",
+    "FRA": "Frankfurt", "GIG": "Rio de Janeiro", "GRB": "Green Bay", "GRU": "São Paulo", "GYY": "Gary",
+    "HHN": "Hahn", "IAD": "Washington", "IAG": "Niagara Falls", "IAH": "Houston",
+    "IND": "Indianapolis", "JAX": "Jacksonville", "LAS": "Las Vegas", "LAX": "Los Angeles",
+    "LHR": "London", "LWB": "Lewisburg", "MAD": "Madrid", "MCI": "Kansas City", "MDW": "Chicago",
+    "MEL": "Melbourne", "MIA": "Miami", "MSP": "Minneapolis", "MSY": "New Orleans", "MUC": "Munich",
+    "OAK": "Oakland", "ORD": "Chicago", "PHL": "Philadelphia", "PHX": "Phoenix", "PIT": "Pittsburgh",
+    "PVD": "Providence", "ROA": "Roanoke", "SEA": "Seattle", "SFO": "San Francisco", "SJC": "San Jose",
+    "STN": "London", "TPA": "Tampa",
+}
 
 THEMES = {
     "light": dict(ink="#0b0b0b", ink2="#52514e", muted="#8a8984", grid="#e8e7e3", surface="#fcfcfb", accent=NFC),
@@ -77,6 +95,78 @@ def _fit_view(lats: list[float], lons: list[float]) -> tuple[dict, float]:
     else:
         zoom = 0.7
     return center, zoom
+
+
+# Sides of an airport dot to try for its city label, in order of preference.
+LABEL_POSITIONS = ("top center", "middle right", "middle left", "bottom center",
+                   "top right", "top left", "bottom right", "bottom left")
+
+
+def _map_px(lat: float, lon: float, zoom: float) -> tuple[float, float]:
+    """Web-Mercator pixel position at `zoom` (MapLibre uses 512px tiles)."""
+    world = 512 * 2 ** zoom
+    y = math.log(math.tan(math.pi / 4 + math.radians(max(min(lat, 85), -85)) / 2))
+    return (lon + 180) / 360 * world, (1 - y / math.pi) / 2 * world
+
+
+def _label_box(x: float, y: float, text: str, position: str, size: int = 13) -> tuple:
+    w, h, gap = len(text) * size * 0.5 + 2, size + 3, 7
+    vert, horiz = position.split()
+    x0 = {"center": x - w / 2, "right": x + gap, "left": x - gap - w}[horiz]
+    y0 = {"middle": y - h / 2, "bottom": y + gap, "top": y - gap - h}[vert]
+    return x0, y0, x0 + w, y0 + h
+
+
+def _overlaps(a: tuple, b: tuple) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _merge_close_labels(points: list[tuple], zoom: float) -> list[str]:
+    """Share one label between dots that sit on top of each other, e.g. "Green Bay / Appleton"."""
+    labels = [text for _, _, text in points]
+    pixels = [_map_px(lat, lon, zoom) for lat, lon, _ in points]
+    for i, text in enumerate(labels):
+        if not text:
+            continue
+        for j in range(i):
+            if labels[j] and math.hypot(pixels[i][0] - pixels[j][0], pixels[i][1] - pixels[j][1]) < 7:
+                labels[j], labels[i] = f"{labels[j]} / {text}", ""
+                break
+    return labels
+
+
+def _place_labels(points: list[tuple], zoom: float) -> tuple[list[str], list[tuple]]:
+    """Pick a free side for each (lat, lon, text), because the map hides overlapping labels.
+
+    Returns each point's position and the boxes taken, in pixels at `zoom`.
+    """
+    pixels = [_map_px(lat, lon, zoom) for lat, lon, _ in points]
+    dots = [(x - 6, y - 6, x + 6, y + 6) for x, y in pixels]
+    labelled = [i for i, point in enumerate(points) if point[2]]
+    positions = [LABEL_POSITIONS[0]] * len(points)
+
+    def box(i: int, position: str) -> tuple:
+        return _label_box(*pixels[i], points[i][2], position)
+
+    def cost(i: int, position: str) -> float:
+        b = box(i, position)
+        # 3px margin: the map drops labels that merely touch.
+        padded = (b[0] - 3, b[1] - 3, b[2] + 3, b[3] + 3)
+        labels_hit = sum(_overlaps(padded, box(j, positions[j])) for j in labelled if j != i)
+        dots_hit = sum(_overlaps(padded, d) for j, d in enumerate(dots) if j != i)
+        return 10 * labels_hit + 3 * dots_hit + LABEL_POSITIONS.index(position) * 0.01
+
+    # Repeatedly move each label to its least-conflicting side until nothing changes.
+    for _ in range(12):
+        changed = False
+        for i in labelled:
+            best = min(LABEL_POSITIONS, key=lambda position: cost(i, position))
+            if best != positions[i]:
+                positions[i], changed = best, True
+        if not changed:
+            break
+    taken = [box(i, positions[i]) for i in labelled]
+    return positions, taken
 
 
 def map_figure(legs: pd.DataFrame, theme: str = "light", highlight_ids: list | None = None) -> go.Figure:
@@ -128,18 +218,7 @@ def map_figure(legs: pd.DataFrame, theme: str = "light", highlight_ids: list | N
         legs[["arr_airport", "arr_lat", "arr_lon"]].set_axis(["code", "lat", "lon"], axis=1),
     ]).drop_duplicates("code")
     airports["lon"] = airports["lon"].map(near_ref)
-
-    # Country names (the basemap's own labels only appear at zoom >= 2).
-    fig.add_trace(go.Scattermap(
-        lat=[c[1] for c in COUNTRY_LABELS], lon=[near_ref(c[2]) for c in COUNTRY_LABELS],
-        text=[c[0] for c in COUNTRY_LABELS], mode="text", hoverinfo="skip",
-        textfont=dict(size=12, color="#9aa4ab"),
-    ))
-    fig.add_trace(go.Scattermap(
-        lat=airports["lat"], lon=airports["lon"], mode="markers",
-        marker=dict(size=10, color=AIRPORT), text=airports["code"],
-        hovertemplate="<b>%{text}</b><extra></extra>",
-    ))
+    cities = airports["code"].map(lambda code: AIRPORT_CITIES.get(code, code))
 
     if route_lat or hi_lat:
         all_lat = [v for v in route_lat + hi_lat if v is not None]
@@ -147,6 +226,36 @@ def map_figure(legs: pd.DataFrame, theme: str = "light", highlight_ids: list | N
         center, zoom = _fit_view(all_lat, all_lon)
     else:
         center, zoom = dict(lat=39, lon=-96), 2.8
+
+    # Label each city once, even when a team used two of its airports.
+    labels = _merge_close_labels(
+        list(zip(airports["lat"], airports["lon"], cities.where(~cities.duplicated(), ""))), zoom)
+    positions, city_boxes = _place_labels(list(zip(airports["lat"], airports["lon"], labels)), zoom)
+    airports = airports.assign(label=labels, position=positions, place=airports["code"] + " · " + cities)
+
+    # Country names (the basemap's own labels only appear at zoom >= 2). City labels take priority.
+    countries = []
+    for name, lat, lon in COUNTRY_LABELS:
+        lon = near_ref(lon)
+        x, y = _map_px(lat, lon, zoom)
+        country_box = (x - len(name) * 3.6, y - 9, x + len(name) * 3.6, y + 9)
+        if not any(_overlaps(country_box, box) for box in city_boxes):
+            countries.append((name, lat, lon))
+    fig.add_trace(go.Scattermap(
+        lat=[c[1] for c in countries], lon=[c[2] for c in countries],
+        text=[c[0] for c in countries], mode="text", hoverinfo="skip",
+        textfont=dict(size=12, color="#9aa4ab"),
+    ))
+    # textposition is per-trace on maps, so airports are grouped by label side.
+    for position, group in airports.groupby("position", sort=False):
+        fig.add_trace(go.Scattermap(
+            lat=group["lat"], lon=group["lon"], mode="markers+text",
+            marker=dict(size=10, color=AIRPORT),
+            text=group["label"], textposition=position,
+            textfont=dict(size=13, color="#ffffff"),
+            customdata=group["place"],
+            hovertemplate="<b>%{customdata}</b><extra></extra>",
+        ))
 
     fig.update_layout(**_base_layout(theme, margin=dict(l=0, r=0, t=0, b=0)),
                       map=dict(style="carto-darkmatter-nolabels", center=center, zoom=zoom))
